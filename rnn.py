@@ -11,7 +11,7 @@ def initWeight(shape):
     return np.random.uniform(-r, r, shape)
 
 class RNN:
-    MAX_LENGTH = 20
+    MAX_LENGTH = 40
 
     def __init__(self, inputDim, stateDim):
         self.inputDim = inputDim
