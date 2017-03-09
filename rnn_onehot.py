@@ -28,7 +28,7 @@ class RNN:
 
     def update(self, x):
         assert 0 < len(x) < self.MAX_LENGTH
-        assert all(isinstance(xi, np.ndarray) and len(xi.shape)==1 for xi in x)
+        assert all(0<=xi<self.inputDim and not isinstance(xi, Iterable) for xi in x)
         self.x = x
         self.s = {0: self.s0}
         self.y = {}
@@ -55,10 +55,10 @@ class RNN:
 
         for i in range(1, len(self.x)):
             #x[0..-2], s[1..-1], y[1..-1]
-            so = self.U.dot(self.x[i-1]) + self.W.dot(self.s[i-1])
+            so = self.U[:,self.x[i-1]] + self.W.dot(self.s[i-1]) #U[:,x] = U.dot(onehot(x))
             self.s[i] = np.tanh(so)
             yo = self.V.dot(self.s[i])
-            self.y[i] = yo
+            self.y[i] = softmax(yo)
 
     def _propagateBackward(self):
         self.dE_dV.fill(0)
@@ -70,14 +70,15 @@ class RNN:
             #y[-1..1], s[-1..1]
             target = self.x[i]
 
-            dE_dyo_i = self.y[i] - target
+            dE_dyo_i = self.y[i]
+            dE_dyo_i[target] -= 1
 
             dEi_ds_i = dE_dyo_i.dot(self.V) #dyo_ds[i] = V
             dE_ds_i += dEi_ds_i
             dE_dso_i = dE_ds_i * (1 - self.s[i]**2) # = dEi_ds_i.dot(tanh'(so[i]))
 
             self.dE_dV += np.outer(dE_dyo_i, self.s[i])
-            self.dE_dU += np.outer(dE_dso_i, self.x[i])
+            self.dE_dU[:,self.x[i]] += dE_dso_i #dE_dU += np.outer(dE_ds_i, onehot(x[i]))
             self.dE_dW += np.outer(dE_dso_i, self.s[i-1])
 
             dE_ds_i = dE_ds_i.dot(self.W) #dE[i:]_ds[i-1] = dE[i:]_ds[i] * ds[i]_ds[i-1] (=W)
@@ -87,9 +88,9 @@ class RNN:
         result = [start]
 
         for i in range(nStep):
-            s = np.tanh(self.U.dot(result[-1]) + self.W.dot(s))
-            y = self.V.dot(s)
-            result.append(y)
+            s = np.tanh(self.U[:,result[-1]] + self.W.dot(s))
+            y = softmax(self.V.dot(s))
+            result.append(np.argmax(y))
 
         return result
 
